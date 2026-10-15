@@ -1,0 +1,6 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { VoyageMotion,boatFloat } from '../src/motion.js';
+const frame=(time,x,theta=0)=>({time,mode:'online',ships:[{id:'ship',x,y:0,theta}],shots:[{id:'ball',x:x+20,y:0}]});
+test('Network ship and shot motion use the same interpolation time and smoothly cross the heading wrap',()=>{const m=new VoyageMotion();m.push(frame(1,0,Math.PI-.1),'ship',5);m.push(frame(1.1,10,-Math.PI+.1),'ship',5.1);const latest=m.frames.at(-1);const ship=m.pose(latest.ships[0],'ships',5.16),ball=m.pose(latest.shots[0],'shots',5.16);assert(Math.abs(ship.x-5)<.001);assert(Math.abs(ball.x-ship.x-20)<.001);assert(Math.abs(Math.abs(ship.theta)-Math.PI)<.001);m.push({...frame(1.2,20),paused:true},'ship',5.2);assert.equal(m.pose(m.frames.at(-1).ships[0],'ships',5.2).x,20);m.push({...frame(0,100),mode:'practice'},'new-ship',6);assert.equal(m.frames.length,1);assert.equal(m.pose(m.frames[0].ships[0],'ships',6).x,100);});
+test('Boat rocking depends only on a slow clock, stays small, and can be disabled',()=>{let previous=boatFloat(0);for(let i=1;i<600;i++){const current=boatFloat(i/60);assert(Math.abs(current.height-previous.height)<.004);assert(Math.abs(current.roll-previous.roll)<.00003);assert(Math.abs(current.roll)<=.002);previous=current;}assert.deepEqual(boatFloat(600,true),{height:.5,roll:0});});
