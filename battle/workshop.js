@@ -1,6 +1,6 @@
 import {EQUIPMENT,equipped} from './core.js';
 const slots={cannon:'Cannons',armor:'Hull armor',speed:'Sails & rigging'};
-const roles={deckguns:'All-rounder',ironjaw:'Heavy hitter',stormpiercer:'Rapid fire',timber:'Lightweight',ironclad:'Tank',tideguard:'Resilient',canvas:'Starter rig',windrunner:'Pursuit',stormweave:'Agility'};
+const roles={deckguns:'All-rounder',ironjaw:'Heavy hitter',stormpiercer:'Rapid fire',timber:'Lightweight',ironclad:'Tank',tideguard:'Resilient',canvas:'Starter rig',windrunner:'Pursuit',stormweave:'Agility',embermaw:'Siege',corsair:'Brawler',leviathan:'Fortress',driftwood:'Glass cannon',tempest:'Interceptor',duelist:'Dogfighter'};
 export function equipmentArt(slot){
  const shapes={cannon:'<circle cx="58" cy="79" r="14"/><path d="M25 62l71-23 11 24-71 22z"/><path d="M24 94h76"/>',armor:'<path d="M64 18l35 15v30c0 24-35 43-35 43S29 87 29 63V33z"/><path d="M64 34v53M45 60h38"/>',speed:'<path d="M63 16v83M57 28L26 79h31zM70 25l32 54H70zM24 94h82l-17 14H41z"/>'};
  return `<svg viewBox="0 0 128 128" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">${shapes[slot]}</svg>`;
