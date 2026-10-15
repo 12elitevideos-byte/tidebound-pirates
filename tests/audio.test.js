@@ -1,0 +1,13 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Audio } from '../src/audio.js';
+import { fakeAudioContext } from './fixtures/audio-context.js';
+
+test('Layered effects schedule valid envelopes, stay within the voice limit, and release their audio nodes',()=>{
+  const previous=globalThis.AudioContext;globalThis.AudioContext=fakeAudioContext();const audio=new Audio();
+  try{assert(audio.start());const context=audio.ctx;assert.equal(audio.loops.length,4);for(const name of ['ui','hover','cannon','impact','explosion','splash','anchorup','anchordown','sailup','saildown','creak','search','searchdone','loot','repair','bank','levelup','purchase','dock','equip','reload','footstep','land','board','talk','queststep']){assert(audio.play(name,{pan:-.5,heavy:true}));assert(audio.voices.size<=48);context.advance(2);}assert.equal(audio.voices.size,0);for(let i=0;i<100;i++)audio.play('cannon');assert.equal(audio.voices.size,48);context.advance(2);assert.equal(audio.voices.size,0);assert(audio.play('loot'));for(const node of context.nodes.filter(n=>n.kind==='oscillator'))assert(node.frequency.events.every(e=>e.value>0&&Number.isFinite(e.time)));audio.dispose();assert.equal(context.state,'closed');assert.equal(audio.voices.size,0);assert(context.nodes.every(n=>n.connections.length===0||['gain','compressor'].includes(n.kind)));}finally{audio.dispose();globalThis.AudioContext=previous;}
+});
+test('Master/effects/music controls, paused sailing, hidden tabs, and unavailable audio are respected',()=>{
+  const previous=globalThis.AudioContext;globalThis.AudioContext=fakeAudioContext();const audio=new Audio();
+  try{audio.start();audio.configure({master:0,effects:1,music:1});assert.equal(audio.play('cannon'),false);assert.equal(audio.gain.gain.value,0);audio.configure({master:1,effects:0,music:.8});assert.equal(audio.play('loot'),false);assert.equal(audio.ambient.gain.value,0);audio.musicNote();assert(audio.voices.size>0);audio.configure({master:.6,effects:.7,music:.2});audio.setScene('voyage');audio.update({id:'ship',speed:90,sail:1,coolLeft:0,coolRight:0,theta:0},1);assert(audio.wake.gain.gain.value>0);audio.update({id:'ship',speed:90,sail:1,coolLeft:0,coolRight:0,theta:0},1,{paused:true});assert.equal(audio.wake.gain.gain.value,0);audio.setVisible(false);assert.equal(audio.effects.gain.value,0);assert.equal(audio.music.gain.value,0);assert.equal(audio.ambient.gain.value,0);assert.equal(audio.play('bank'),false);audio.dispose();globalThis.AudioContext=undefined;assert.equal(new Audio().play('ui'),false);globalThis.AudioContext=class{constructor(){throw new Error('Audio disabled');}};assert.equal(new Audio().start(),false);}finally{audio.dispose();globalThis.AudioContext=previous;}
+});
