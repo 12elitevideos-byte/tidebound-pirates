@@ -1,0 +1,20 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+import { defaultAccount } from '../shared/config.js';
+import { applyReward,applyAction } from '../shared/economy.js';
+test('Postgres migration: atomic cloud transactions, idempotency, ownership isolation and browser write denial',async()=>{
+  const db=new PGlite();const a=crypto.randomUUID(),b=crypto.randomUUID(),item=crypto.randomUUID();
+  await db.exec("create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema auth to authenticated;");
+  await db.query('insert into auth.users values($1),($2)',[a,b]);await db.exec(await fs.readFile(new URL('../database/001_tidebound.sql',import.meta.url),'utf8'));await db.exec(await fs.readFile(new URL('../database/security-checks.sql',import.meta.url),'utf8'));
+  const ensure=async id=>(await db.query('select public.tb_ensure_account($1,$2::jsonb) as data',[id,JSON.stringify(defaultAccount('Captain '+id.slice(0,4)))])).rows[0].data;
+  await db.exec('set role service_role');const before=await ensure(a);await ensure(b);const d=applyReward(before,{type:'bank',mode:'solo',ship:'sloop',gold:1800,items:1});
+  const commit=async(data,op,meta,items=[],revision=0)=>(await db.query('select public.tb_commit_account($1,$2,$3::jsonb,$4,$5::jsonb,$6::uuid[],null) as data',[a,revision,JSON.stringify(data),op,JSON.stringify(meta),items])).rows[0].data;
+  const paid=await commit(d,'bank1',{type:'bank',gold:1800},[item]);assert.equal(paid.gold,2050);assert.equal(paid.revision,1);assert.equal((await commit(d,'bank1',{type:'bank',gold:1800},[item])).gold,2050);
+  await assert.rejects(()=>commit(applyReward(paid,{type:'bank',mode:'solo',gold:1800,items:1}),'bank2',{type:'bank',gold:1800},[item],1));assert.equal((await ensure(a)).gold,2050);
+  const purchase=applyAction(paid,{type:'purchase',item:'cannon:quick'});await commit(purchase,'buy1',{type:'purchase',item:'cannon:quick'},[],1);assert.equal((await ensure(a)).gold,1150);await assert.rejects(()=>commit(purchase,'buy2',{type:'purchase'},[],1));
+  await db.exec('reset role');assert.equal(Number((await db.query('select count(*) as n from public.tb_ledger where user_id=$1',[a])).rows[0].n),2);
+  await db.exec('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[a]);assert.equal((await db.query('select user_id from public.tb_accounts')).rows.length,1);assert.equal((await db.query('select user_id from public.tb_accounts where user_id=$1',[b])).rows.length,0);await assert.rejects(()=>db.query("update public.tb_accounts set data=jsonb_set(data,'{gold}','999999') where user_id=$1",[a]));await assert.rejects(()=>commit(d,'hack',{},[],2));assert.equal((await db.query('select * from public.tb_public_profiles')).rows.length,2);
+  await db.exec('reset role;set role service_role');const boot=crypto.randomUUID();await db.query('select public.tb_start_voyage($1,$2,$3,$4,$5)',[a,crypto.randomUUID(),'room','solo',boot]);await assert.rejects(()=>db.query('select public.tb_start_voyage($1,$2,$3,$4,$5)',[a,crypto.randomUUID(),'other','online',boot]));await db.query('select public.tb_reset_boot($1)',[crypto.randomUUID()]);assert.equal((await db.query('select * from public.tb_active_voyages')).rows.length,0);await db.close();
+});
