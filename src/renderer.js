@@ -10,17 +10,17 @@ const sharedMaterials=new Set([wood,dark,metal,sand]);
 function disposeObject(object){const geometries=new Set(),materials=new Set();object.traverse(o=>{if(o.geometry)geometries.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])if(m&&!sharedMaterials.has(m))materials.add(m);});for(const g of geometries)g.dispose();for(const m of materials)m.dispose();}
 function box(w,h,d,m,x=0,y=0,z=0){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;return o;}
 function cylinder(r1,r2,h,m,x=0,y=0,z=0,n=10){const o=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,n),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;return o;}
-function makeSail(w,h,color,pattern='plain',flag=false){
-  const geometry=new THREE.PlaneGeometry(w,h,flag?8:30,flag?3:18),positions=geometry.attributes.position,colors=[];
+function makeSail(w,h,color,pattern='plain',flag=false,detail=30){
+  const geometry=new THREE.PlaneGeometry(w,h,flag?8:detail,flag?3:Math.max(4,Math.round(detail*.6))),positions=geometry.attributes.position,colors=[];
   const base=new THREE.Color(color),stripe=new THREE.Color(0xfaf3de),sun=new THREE.Color(0xbc873e);
   for(let i=0;i<positions.count;i++){const x=positions.getX(i),y=positions.getY(i);let c=base;if(pattern==='stripe'&&Math.floor((x+w/2)/6)%2===0)c=stripe;if(pattern==='sun'&&x*x+y*y<49)c=sun;colors.push(c.r,c.g,c.b);positions.setZ(i,flag?0:Math.sin((x/w+.5)*Math.PI)*Math.sin((y/h+.5)*Math.PI)*3);}
   geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.computeVertexNormals();
   const material=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,roughness:1,metalness:0});
   const sail=new THREE.Mesh(geometry,material);sail.name=flag?'pennant':'sail';sail.userData.rest=positions.array.slice();sail.userData.width=w;sail.userData.flag=flag;return sail;
 }
-export function animateShip(ship,t,reduced=false){for(const sail of ship.userData.sails){const p=sail.geometry.attributes.position,rest=sail.userData.rest,w=sail.userData.width;for(let i=0;i<p.count;i++){const x=rest[i*3],y=rest[i*3+1],swell=sail.userData.flag?(x/w+.5)*1.7:Math.sin((x/w+.5)*Math.PI)*1.25;p.setZ(i,rest[i*3+2]+(reduced?0:Math.sin(t*1.7+x*.11+y*.03)*swell));}p.needsUpdate=true;sail.geometry.computeVertexNormals();}}
-export function makeShip(kind='sloop',l={hull:'cedar',sail:'cream',flag:'gull'}){
-  const g=new THREE.Group(),hull=mat(HULLS[l.hull]?.color||0x8d5c40);
+export function animateShip(ship,t,reduced=false){for(const sail of ship.userData.sails){if(ship.userData.lowDetail){sail.rotation.z=reduced?0:Math.sin(t*1.5)*.018;continue;}const p=sail.geometry.attributes.position,rest=sail.userData.rest,w=sail.userData.width;for(let i=0;i<p.count;i++){const x=rest[i*3],y=rest[i*3+1],swell=sail.userData.flag?(x/w+.5)*1.7:Math.sin((x/w+.5)*Math.PI)*1.25;p.setZ(i,rest[i*3+2]+(reduced?0:Math.sin(t*1.7+x*.11+y*.03)*swell));}p.needsUpdate=true;sail.geometry.computeVertexNormals();}}
+export function makeShip(kind='sloop',l={hull:'cedar',sail:'cream',flag:'gull'},options={}){
+  const g=new THREE.Group();g.userData.lowDetail=options.lowDetail;const hull=mat(HULLS[l.hull]?.color||0x8d5c40);
   const shape=new THREE.Shape();shape.moveTo(0,43);shape.bezierCurveTo(-24,23,-25,-23,-17,-37);shape.lineTo(17,-37);shape.bezierCurveTo(25,-23,24,23,0,43);
   const body=new THREE.Mesh(new THREE.ExtrudeGeometry(shape,{depth:14,bevelEnabled:true,bevelSegments:1,steps:1,bevelSize:3,bevelThickness:3}),hull);body.name='hull';body.rotation.x=-Math.PI/2;body.position.y=3;body.castShadow=true;g.add(body);
   // The inset deck sits above the bevel, with a real gap instead of coplanar faces.
@@ -30,10 +30,10 @@ export function makeShip(kind='sloop',l={hull:'cedar',sail:'cream',flag:'gull'})
   const cabin=box(16,11,13,hull,0,37,27);g.add(cabin);g.add(box(17,2,15,mat(0x667c72),0,43,27));for(const x of [-5,5])g.add(box(3,3,0.5,mat(0xf3ce89),x,38,20.3));
   g.add(cylinder(1.1,1.7,64,dark,0,52,-2));g.add(box(49,2,2,wood,0,72,-2));
   // Patterns are colors on the cloth itself. No emblem or stripe can intersect it.
-  const sail=makeSail(45,31,SAILS[l.sail]?.color||0xf1e4cd,SAILS[l.sail]?.pattern);sail.position.set(0,55,-3);sail.rotation.y=.18;g.add(sail);g.userData.sails=[sail];
+  const sail=makeSail(45,31,SAILS[l.sail]?.color||0xf1e4cd,SAILS[l.sail]?.pattern,false,options.lowDetail?8:30);sail.position.set(0,55,-3);sail.rotation.y=.18;g.add(sail);g.userData.sails=[sail];
   const flag=makeSail(17,8,FLAGS[l.flag]?.color||0xeed5ac,'plain',true);flag.position.set(9,85,-2);g.add(flag);g.userData.sails.push(flag);
   const count=kind==='galleon'?4:kind==='brig'?3:2;g.userData.cannons=[];for(let i=0;i<count;i++)for(const side of [-1,1]){const z=-15+i*13;g.add(box(8,4,8,dark,side*16,23,z));const cannon=cylinder(2.8,3.6,14,metal,side*22,26,z);cannon.rotation.z=Math.PI/2;g.add(cannon);cannon.userData.baseX=cannon.position.x;g.userData.cannons.push(cannon);}
-  if(kind!=='sloop'){g.add(cylinder(1.3,1.5,50,dark,0,45,-24));const foresail=makeSail(29,25,SAILS[l.sail]?.color||0xf1e4cd,SAILS[l.sail]?.pattern);foresail.position.set(0,45,-25);g.add(foresail);g.userData.sails.push(foresail);}
+  if(kind!=='sloop'){g.add(cylinder(1.3,1.5,50,dark,0,45,-24));const foresail=makeSail(29,25,SAILS[l.sail]?.color||0xf1e4cd,SAILS[l.sail]?.pattern,false,options.lowDetail?8:30);foresail.position.set(0,45,-25);g.add(foresail);g.userData.sails.push(foresail);}
   const rope=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,80,-2),new THREE.Vector3(0,23,-45)]),new THREE.LineBasicMaterial({color:0xbcb296}));g.add(rope);g.scale.setScalar(kind==='galleon'?1.4:kind==='brig'?1.18:1);return g;
 }
 function palm(x,z,size=1){const g=new THREE.Group();g.position.set(x,8,z);g.add(cylinder(2,4,38,mat(0x927251),0,19,0,6));for(let i=0;i<6;i++){const leaf=new THREE.Mesh(new THREE.ConeGeometry(8,34,4),mat(0x638a6b));leaf.position.set(Math.cos(i)*10,36,Math.sin(i)*10);leaf.rotation.set(Math.sin(i)*0.85,0,Math.cos(i)*0.85);g.add(leaf);}g.scale.setScalar(size);return g;}
