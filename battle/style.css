@@ -5,3 +5,5 @@
 .art{position:relative;background:linear-gradient(145deg,#d2e5dd,#e6deca);border-radius:22px;overflow:hidden}.art canvas{position:static!important;width:100%!important;height:100%!important}
 .home-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.home-actions button{text-align:left;padding:20px 24px;display:flex;flex-direction:column;gap:6px}.home-actions strong{font-size:22px}.home-actions span{font-weight:400;font-size:13px;opacity:.75}.page-home{max-width:950px}.page-play,.page-matchmaking,.page-shipyard{max-width:1000px}#content>h1{font-size:44px;margin:20px 0}.page-matchmaking .card{max-width:600px;margin:24px auto}.page-upgrades h1{font-size:36px!important}
 header{flex-wrap:wrap}header .row{gap:7px}header button{padding:9px 12px}
+
+.hud .panel{backdrop-filter:none;box-shadow:none}
